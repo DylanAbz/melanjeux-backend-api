@@ -5,6 +5,8 @@ import authRoutes from './routes/auth';
 import { authRequired, AuthRequest } from './middleware/auth';
 import escapeGamesRoutes from './routes/escapeGames';
 import roomsRoutes from './routes/rooms';
+import timeSlotsRoutes from './routes/timeSlots';
+import timeSlotPlayersRoutes from './routes/timeSlotPlayers';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -19,6 +21,8 @@ app.get('/health', (_req, res) => {
 app.use('/auth', authRoutes);
 app.use('/escape-games', escapeGamesRoutes);
 app.use('/rooms', roomsRoutes);
+app.use('/time-slots', timeSlotsRoutes);
+app.use('/time-slot-players', timeSlotPlayersRoutes);
 
 // Exemple route protégée
 app.get('/me', authRequired, (req: AuthRequest, res) => {
