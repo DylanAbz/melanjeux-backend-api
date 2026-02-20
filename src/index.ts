@@ -39,17 +39,71 @@ async function runMigrations() {
             );
         `;
 
-        // Ensure all columns exist (for existing tables)
         await sql`
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS first_name TEXT,
-            ADD COLUMN IF NOT EXISTS last_name TEXT,
-            ADD COLUMN IF NOT EXISTS birth_date DATE,
-            ADD COLUMN IF NOT EXISTS is_age_public BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS city TEXT,
-            ADD COLUMN IF NOT EXISTS pseudo TEXT,
-            ADD COLUMN IF NOT EXISTS consent_cgu BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS consent_rgpd BOOLEAN DEFAULT FALSE;
+            CREATE TABLE IF NOT EXISTS escape_games (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                owner_user_id UUID NOT NULL REFERENCES users(id),
+                display_name TEXT NOT NULL,
+                legal_name TEXT,
+                siret TEXT,
+                address_line1 TEXT NOT NULL,
+                address_line2 TEXT,
+                city TEXT NOT NULL,
+                postal_code TEXT NOT NULL,
+                country TEXT NOT NULL,
+                contact_email TEXT NOT NULL,
+                contact_phone TEXT,
+                description TEXT,
+                logo_url TEXT,
+                latitude DOUBLE PRECISION,
+                longitude DOUBLE PRECISION,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS rooms (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                escape_game_id UUID NOT NULL REFERENCES escape_games(id),
+                name TEXT NOT NULL,
+                description TEXT,
+                image_url TEXT,
+                category TEXT,
+                price_json JSONB,
+                duration_minutes INTEGER NOT NULL,
+                min_players INTEGER NOT NULL,
+                max_players INTEGER NOT NULL,
+                search_level INTEGER DEFAULT 1,
+                thinking_level INTEGER DEFAULT 1,
+                manipulation_level INTEGER DEFAULT 1,
+                difficulty_level INTEGER DEFAULT 1,
+                is_pmr_accessible BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `;
+
+        // Migration columns for existing tables
+        await sql`
+            ALTER TABLE escape_games 
+            ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+            ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+        `;
+
+        await sql`
+            ALTER TABLE rooms 
+            ALTER COLUMN price_total DROP NOT NULL,
+            ALTER COLUMN duration_minutes DROP NOT NULL,
+            ALTER COLUMN min_players DROP NOT NULL,
+            ALTER COLUMN max_players DROP NOT NULL,
+            ADD COLUMN IF NOT EXISTS category TEXT,
+            ADD COLUMN IF NOT EXISTS price_json JSONB,
+            ADD COLUMN IF NOT EXISTS search_level INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS thinking_level INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS manipulation_level INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS difficulty_level INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS is_pmr_accessible BOOLEAN DEFAULT FALSE;
         `;
         console.log('Migrations finished.');
     } catch (err) {

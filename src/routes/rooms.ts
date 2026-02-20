@@ -37,19 +37,21 @@ router.post(
                 name,
                 description,
                 image_url,
-                price_total,
+                category,
+                price_json,
                 duration_minutes,
-                difficulty,
-                theme,
-                languages,
                 min_players,
                 max_players,
+                search_level,
+                thinking_level,
+                manipulation_level,
+                difficulty_level,
+                is_pmr_accessible
             } = req.body;
 
             if (
                 !escape_game_id ||
                 !name ||
-                !price_total ||
                 !duration_minutes ||
                 !min_players ||
                 !max_players
@@ -74,26 +76,32 @@ router.post(
           name,
           description,
           image_url,
-          price_total,
+          category,
+          price_json,
           duration_minutes,
-          difficulty,
-          theme,
-          languages,
           min_players,
-          max_players
+          max_players,
+          search_level,
+          thinking_level,
+          manipulation_level,
+          difficulty_level,
+          is_pmr_accessible
         )
         VALUES (
           ${escape_game_id},
           ${name},
           ${description},
           ${image_url},
-          ${price_total},
+          ${category},
+          ${price_json ? JSON.stringify(price_json) : null},
           ${duration_minutes},
-          ${difficulty},
-          ${theme},
-          ${languages ? JSON.stringify(languages) : null},
           ${min_players},
-          ${max_players}
+          ${max_players},
+          ${search_level || 1},
+          ${thinking_level || 1},
+          ${manipulation_level || 1},
+          ${difficulty_level || 1},
+          ${is_pmr_accessible || false}
         )
         RETURNING *
       `;
@@ -108,74 +116,62 @@ router.post(
 
 /**
  * LIST / SEARCH rooms (public, joueurs)
- * Filtres possibles:
- * - name (substring)
- * - city
- * - min_price, max_price
- * - difficulty
  */
 router.get('/', async (req, res) => {
     try {
-        const { name, city, min_price, max_price, difficulty } = req.query;
-
-        const filters: string[] = ['r.is_active = TRUE', 'eg.is_active = TRUE'];
-        const params: any[] = [];
-
-        if (name) {
-            params.push(`%${name}%`);
-            filters.push(`r.name ILIKE $${params.length}`);
-        }
-
-        if (city) {
-            params.push(city);
-            filters.push(`eg.city ILIKE $${params.length}`);
-        }
-
-        if (min_price) {
-            params.push(min_price);
-            filters.push(`r.price_total >= $${params.length}`);
-        }
-
-        if (max_price) {
-            params.push(max_price);
-            filters.push(`r.price_total <= $${params.length}`);
-        }
-
-        if (difficulty) {
-            params.push(difficulty);
-            filters.push(`r.difficulty = $${params.length}`);
-        }
-
-        const whereClause = filters.length
-            ? 'WHERE ' + filters.join(' AND ')
-            : '';
-
-        const query = `
+        const rows = await sql<any[]>`
       SELECT
         r.id,
-        r.name,
+        r.name AS title,
         r.description,
-        r.image_url,
-        r.price_total,
-        r.duration_minutes,
-        r.difficulty,
-        r.theme,
-        r.languages,
-        r.min_players,
-        r.max_players,
-        eg.id AS escape_game_id,
-        eg.display_name AS escape_game_name,
-        eg.city,
-        eg.postal_code,
-        eg.country
+        r.image_url AS image,
+        r.category,
+        r.price_json AS price,
+        r.duration_minutes AS duration,
+        r.min_players AS "minPlayers",
+        r.max_players AS "maxPlayers",
+        r.search_level AS "searchLevel",
+        r.thinking_level AS "thinkingLevel",
+        r.manipulation_level AS "manipulationLevel",
+        r.difficulty_level AS "difficultyLevel",
+        r.is_pmr_accessible AS "isPmrAccessible",
+        eg.display_name AS escape_game_nom,
+        eg.address_line1 AS escape_game_adresse,
+        eg.contact_phone AS escape_game_phone,
+        eg.contact_email AS escape_game_mail,
+        eg.latitude,
+        eg.longitude
       FROM rooms r
       JOIN escape_games eg ON r.escape_game_id = eg.id
-      ${whereClause}
-      ORDER BY eg.city ASC, r.name ASC
+      WHERE r.is_active = TRUE AND eg.is_active = TRUE
+      ORDER BY r.created_at DESC
       LIMIT 100
     `;
 
-        const rooms = await sql<any[]>(query, params);
+        // Map flat SQL result to nested Room interface
+        const rooms = rows.map(r => ({
+            id: r.id,
+            title: r.title,
+            image: r.image,
+            category: r.category,
+            description: r.description,
+            searchLevel: r.searchLevel,
+            thinkingLevel: r.thinkingLevel,
+            manipulationLevel: r.manipulationLevel,
+            difficultyLevel: r.difficultyLevel,
+            duration: r.duration,
+            minPlayers: r.minPlayers,
+            maxPlayers: r.maxPlayers,
+            price: r.price || {},
+            isPmrAccessible: r.isPmrAccessible,
+            escapeGame: {
+                nom: r.escape_game_nom,
+                adresse: r.escape_game_adresse,
+                telephone: r.escape_game_phone,
+                mail: r.escape_game_mail,
+                coordinates: r.latitude && r.longitude ? { lat: r.latitude, lng: r.longitude } : undefined
+            }
+        }));
 
         return res.json(rooms);
     } catch (err) {
@@ -193,21 +189,62 @@ router.get('/:id', async (req, res) => {
 
         const rows = await sql<any[]>`
       SELECT
-        r.*,
-        eg.display_name AS escape_game_name,
-        eg.city,
-        eg.postal_code,
-        eg.country
+        r.id,
+        r.name AS title,
+        r.description,
+        r.image_url AS image,
+        r.category,
+        r.price_json AS price,
+        r.duration_minutes AS duration,
+        r.min_players AS "minPlayers",
+        r.max_players AS "maxPlayers",
+        r.search_level AS "searchLevel",
+        r.thinking_level AS "thinkingLevel",
+        r.manipulation_level AS "manipulationLevel",
+        r.difficulty_level AS "difficultyLevel",
+        r.is_pmr_accessible AS "isPmrAccessible",
+        eg.display_name AS escape_game_nom,
+        eg.address_line1 AS escape_game_adresse,
+        eg.contact_phone AS escape_game_phone,
+        eg.contact_email AS escape_game_mail,
+        eg.latitude,
+        eg.longitude
       FROM rooms r
       JOIN escape_games eg ON r.escape_game_id = eg.id
       WHERE r.id = ${id} AND r.is_active = TRUE AND eg.is_active = TRUE
       LIMIT 1
     `;
 
-        const room = rows[0];
-        if (!room) {
+        const r = rows[0];
+
+        if (!r) {
             return res.status(404).json({ error: 'not_found' });
         }
+
+        const room = {
+            id: r.id,
+            title: r.title,
+            image: r.image,
+            category: r.category,
+            description: r.description,
+            searchLevel: r.searchLevel,
+            thinkingLevel: r.thinkingLevel,
+            manipulationLevel: r.manipulationLevel,
+            difficultyLevel: r.difficultyLevel,
+            duration: r.duration,
+            minPlayers: r.minPlayers,
+            maxPlayers: r.maxPlayers,
+            price: r.price || {},
+            isPmrAccessible: r.isPmrAccessible,
+            escapeGame: {
+                nom: r.escape_game_nom,
+                adresse: r.escape_game_adresse,
+                telephone: r.escape_game_phone,
+                mail: r.escape_game_mail,
+                coordinates: r.latitude && r.longitude ? { lat: r.latitude, lng: r.longitude } : undefined
+            }
+        };
+
         return res.json(room);
     } catch (err) {
         console.error(err);
@@ -249,14 +286,17 @@ router.put(
                 name,
                 description,
                 image_url,
-                price_total,
+                category,
+                price_json,
                 duration_minutes,
-                difficulty,
-                theme,
-                languages,
                 min_players,
                 max_players,
-                is_active,
+                search_level,
+                thinking_level,
+                manipulation_level,
+                difficulty_level,
+                is_pmr_accessible,
+                is_active
             } = req.body;
 
             const updated = await sql<any[]>`
@@ -265,13 +305,16 @@ router.put(
           name = COALESCE(${name}, name),
           description = COALESCE(${description}, description),
           image_url = COALESCE(${image_url}, image_url),
-          price_total = COALESCE(${price_total}, price_total),
+          category = COALESCE(${category}, category),
+          price_json = COALESCE(${price_json ? JSON.stringify(price_json) : null}, price_json),
           duration_minutes = COALESCE(${duration_minutes}, duration_minutes),
-          difficulty = COALESCE(${difficulty}, difficulty),
-          theme = COALESCE(${theme}, theme),
-          languages = COALESCE(${languages ? JSON.stringify(languages) : null}, languages),
           min_players = COALESCE(${min_players}, min_players),
           max_players = COALESCE(${max_players}, max_players),
+          search_level = COALESCE(${search_level}, search_level),
+          thinking_level = COALESCE(${thinking_level}, thinking_level),
+          manipulation_level = COALESCE(${manipulation_level}, manipulation_level),
+          difficulty_level = COALESCE(${difficulty_level}, difficulty_level),
+          is_pmr_accessible = COALESCE(${is_pmr_accessible}, is_pmr_accessible),
           is_active = COALESCE(${is_active}, is_active)
         WHERE id = ${id}
         RETURNING *
