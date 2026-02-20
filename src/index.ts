@@ -80,6 +80,20 @@ async function runMigrations() {
                 difficulty_level INTEGER DEFAULT 1,
                 is_pmr_accessible BOOLEAN DEFAULT FALSE,
                 is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                price_total INTEGER -- old column
+            );
+        `;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS time_slots (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                room_id UUID NOT NULL REFERENCES rooms(id),
+                start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'empty', -- empty, partially_filled, full, cancelled
+                min_players_override INTEGER,
+                max_players_override INTEGER,
+                current_players_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `;
@@ -104,6 +118,11 @@ async function runMigrations() {
             ADD COLUMN IF NOT EXISTS manipulation_level INTEGER DEFAULT 1,
             ADD COLUMN IF NOT EXISTS difficulty_level INTEGER DEFAULT 1,
             ADD COLUMN IF NOT EXISTS is_pmr_accessible BOOLEAN DEFAULT FALSE;
+        `;
+        await sql`
+            ALTER TABLE time_slots 
+            ALTER COLUMN status TYPE TEXT,
+            ALTER COLUMN status SET DEFAULT 'empty';
         `;
         console.log('Migrations finished.');
     } catch (err) {

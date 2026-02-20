@@ -109,6 +109,33 @@ async function seed() {
         }
 
         console.log('✅ Rooms created');
+
+        // 5. Création des créneaux (Time Slots) pour les 14 prochains jours
+        console.log('📅 Generating time slots...');
+        const roomRows = await sql<any[]>`SELECT id FROM rooms`;
+        const hours = [10, 12, 14, 16, 18, 20, 22];
+
+        for (const room of roomRows) {
+            for (let i = 0; i < 14; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() + i);
+                
+                // On ne met pas forcément des créneaux tous les jours pour tester les dates indisponibles
+                if (i % 5 === 0 && i !== 0) continue; 
+
+                for (const hour of hours) {
+                    const startTime = new Date(date);
+                    startTime.setHours(hour, 0, 0, 0);
+
+                    await sql`
+                        INSERT INTO time_slots (room_id, start_time, status)
+                        VALUES (${room.id}, ${startTime.toISOString()}, 'empty')
+                    `;
+                }
+            }
+        }
+
+        console.log('✅ Time slots generated');
         console.log('✨ Seed completed successfully !');
         process.exit(0);
     } catch (err) {

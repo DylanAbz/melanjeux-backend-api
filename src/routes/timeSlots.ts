@@ -25,6 +25,30 @@ async function ensureRoomOwnership(roomId: string, userId: string) {
 }
 
 /**
+ * NEW: GET available dates for a room
+ */
+router.get('/available-dates', async (req, res) => {
+    try {
+        const { room_id } = req.query;
+        if (!room_id) return res.status(400).json({ error: 'room_id_required' });
+
+        const rows = await sql<any[]>`
+            SELECT DISTINCT TO_CHAR(start_time, 'YYYY-MM-DD') as date
+            FROM time_slots
+            WHERE room_id = ${room_id as string} 
+              AND status IN ('empty', 'partially_filled')
+              AND start_time >= NOW()
+            ORDER BY date ASC
+        `;
+
+        return res.json(rows.map(r => r.date));
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'internal_error' });
+    }
+});
+
+/**
  * CREATE time slot (escape owner)
  */
 router.post(
@@ -81,43 +105,37 @@ router.post(
 );
 
 /**
- * LIST time slots pour une room (public, joueurs)
- * - option: filtrer à partir d'une date
+ * LIST time slots pour une room
  */
 router.get('/', async (req, res) => {
     try {
-        const { room_id, from } = req.query;
+        const { room_id, date } = req.query;
 
         if (!room_id) {
             return res.status(400).json({ error: 'room_id_required' });
         }
 
-        const params: any[] = [room_id];
-        let where = 'WHERE ts.room_id = $1';
-
-        if (from) {
-            params.push(from);
-            where += ` AND ts.start_time >= $${params.length}`;
+        let slots;
+        if (date) {
+            // Filter by specific day, but only in the future
+            slots = await sql<any[]>`
+                SELECT * FROM time_slots
+                WHERE room_id = ${room_id as string}
+                  AND TO_CHAR(start_time, 'YYYY-MM-DD') = ${date as string}
+                  AND start_time >= NOW()
+                  AND status != 'cancelled'
+                ORDER BY start_time ASC
+            `;
+        } else {
+            slots = await sql<any[]>`
+                SELECT * FROM time_slots
+                WHERE room_id = ${room_id as string}
+                  AND start_time >= NOW()
+                  AND status != 'cancelled'
+                ORDER BY start_time ASC
+                LIMIT 200
+            `;
         }
-
-        where += ` AND ts.status != 'cancelled'`;
-
-        const query = `
-      SELECT
-        ts.id,
-        ts.room_id,
-        ts.start_time,
-        ts.status,
-        ts.min_players_override,
-        ts.max_players_override,
-        ts.current_players_count
-      FROM time_slots ts
-      ${where}
-      ORDER BY ts.start_time ASC
-      LIMIT 200
-    `;
-
-        const slots = await sql<any[]>(query, params);
 
         return res.json(slots);
     } catch (err) {
@@ -127,7 +145,7 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * UPDATE time slot (owner, pour changer statut / overrides)
+ * UPDATE time slot
  */
 router.put(
     '/:id',
@@ -180,7 +198,39 @@ router.put(
 );
 
 /**
- * DELETE time slot (soft via status=cancelled)
+ * GET one time slot with full room and escape game details
+ */
+router.get('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const rows = await sql<any[]>`
+            SELECT 
+                ts.*,
+                r.name as room_name,
+                r.price_json,
+                r.duration_minutes,
+                eg.display_name as escape_game_nom,
+                eg.address_line1 as escape_game_adresse
+            FROM time_slots ts
+            JOIN rooms r ON ts.room_id = r.id
+            JOIN escape_games eg ON r.escape_game_id = eg.id
+            WHERE ts.id = ${id}
+            LIMIT 1
+        `;
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'not_found' });
+        }
+
+        return res.json(rows[0]);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'internal_error' });
+    }
+});
+
+/**
+ * DELETE time slot
  */
 router.delete(
     '/:id',
