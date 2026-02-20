@@ -209,6 +209,8 @@ router.get('/:id', async (req, res) => {
                 r.name as room_name,
                 r.price_json,
                 r.duration_minutes,
+                r.min_players,
+                r.max_players,
                 eg.display_name as escape_game_nom,
                 eg.address_line1 as escape_game_adresse
             FROM time_slots ts

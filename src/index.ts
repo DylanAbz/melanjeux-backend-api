@@ -98,6 +98,17 @@ async function runMigrations() {
             );
         `;
 
+        await sql`
+            CREATE TABLE IF NOT EXISTS time_slot_players (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                time_slot_id UUID NOT NULL REFERENCES time_slots(id),
+                user_id UUID NOT NULL REFERENCES users(id),
+                status TEXT NOT NULL DEFAULT 'joined', -- joined, paying, paid, cancelled
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(time_slot_id, user_id)
+            );
+        `;
+
         // Migration columns for existing tables
         await sql`
             ALTER TABLE escape_games 
