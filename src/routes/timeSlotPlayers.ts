@@ -198,6 +198,41 @@ router.post(
 );
 
 /**
+ * GET current user's bookings
+ */
+router.get(
+    '/my-bookings',
+    authRequired,
+    async (req: AuthRequest, res) => {
+        try {
+            const rows = await sql<any[]>`
+        SELECT
+          ts.id as slot_id,
+          ts.start_time,
+          ts.status as slot_status,
+          ts.current_players_count,
+          r.name as room_title,
+          r.image_url as room_image,
+          r.min_players,
+          r.max_players,
+          tsp.status as player_status
+        FROM time_slot_players tsp
+        JOIN time_slots ts ON tsp.time_slot_id = ts.id
+        JOIN rooms r ON ts.room_id = r.id
+        WHERE tsp.user_id = ${req.user!.id}
+          AND tsp.status != 'cancelled'
+        ORDER BY ts.start_time DESC
+      `;
+
+            return res.json(rows);
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'internal_error' });
+        }
+    }
+);
+
+/**
  * LIST players for a slot (owner ou admin plus tard, ici on fait simple: owner via join)
  */
 router.get(
