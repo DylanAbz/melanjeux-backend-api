@@ -7,41 +7,89 @@ const router = Router();
 
 router.post('/signup', async (req, res) => {
     try {
-        const { email, password, role } = req.body as {
+        const {
+            email,
+            password,
+            firstName,
+            lastName,
+            birthDate,
+            isAgePublic,
+            city,
+            pseudo,
+            consentCGU,
+            consentRGPD
+        } = req.body as {
             email?: string;
             password?: string;
-            role?: 'player' | 'escape_owner';
+            firstName?: string;
+            lastName?: string;
+            birthDate?: string;
+            isAgePublic?: boolean;
+            city?: string;
+            pseudo?: string;
+            consentCGU?: boolean;
+            consentRGPD?: boolean;
         };
 
-        if (!email || !password) {
-            return res.status(400).json({ error: 'email and password are required' });
+        if (!email || !password || !firstName || !lastName || !birthDate || !pseudo || !consentCGU || !consentRGPD) {
+            return res.status(400).json({ error: 'missing_required_fields' });
         }
-
-        const normalizedRole: 'player' | 'escape_owner' =
-            role === 'escape_owner' ? 'escape_owner' : 'player';
 
         const hash = await bcrypt.hash(password, 10);
 
-        const result = await sql<{
-            id: string;
-            email: string;
-            role: 'player' | 'escape_owner';
-        }[]>`
-      INSERT INTO users (email, password_hash, role)
-      VALUES (${email}, ${hash}, ${normalizedRole})
-      RETURNING id, email, role
+        const result = await sql<any[]>`
+      INSERT INTO users (
+        email, 
+        password_hash, 
+        first_name, 
+        last_name, 
+        birth_date, 
+        is_age_public, 
+        city, 
+        pseudo, 
+        consent_cgu, 
+        consent_rgpd,
+        role
+      )
+      VALUES (
+        ${email}, 
+        ${hash}, 
+        ${firstName}, 
+        ${lastName}, 
+        ${birthDate}, 
+        ${isAgePublic || false}, 
+        ${city || null}, 
+        ${pseudo}, 
+        ${consentCGU}, 
+        ${consentRGPD},
+        'player'
+      )
+      RETURNING id, email, first_name, last_name, pseudo, role
     `;
 
         const user = result[0];
         const token = signToken({ id: user.id, role: user.role });
 
         return res.status(201).json({
-            user,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                pseudo: user.pseudo
+            },
             token,
         });
     } catch (err: any) {
         if (err.code === '23505') {
-            return res.status(409).json({ error: 'email already in use' });
+            if (err.detail?.includes('email')) {
+                return res.status(409).json({ error: 'email_already_in_use' });
+            }
+            if (err.detail?.includes('pseudo')) {
+                return res.status(409).json({ error: 'pseudo_already_in_use' });
+            }
+            return res.status(409).json({ error: 'conflict' });
         }
         console.error(err);
         return res.status(500).json({ error: 'internal_error' });
@@ -59,13 +107,8 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'email and password are required' });
         }
 
-        const rows = await sql<{
-            id: string;
-            email: string;
-            password_hash: string;
-            role: 'player' | 'escape_owner';
-        }[]>`
-      SELECT id, email, password_hash, role
+        const rows = await sql<any[]>`
+      SELECT id, email, password_hash, role, first_name, last_name, pseudo
       FROM users
       WHERE email = ${email}
       LIMIT 1
@@ -88,6 +131,9 @@ router.post('/login', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 role: user.role,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                pseudo: user.pseudo
             },
             token,
         });
