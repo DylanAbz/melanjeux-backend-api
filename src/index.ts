@@ -162,16 +162,21 @@ app.get('/me', authRequired, (req: AuthRequest, res) => {
     res.json({ user: req.user });
 });
 
-async function start() {
-    await runMigrations();
-    
-    // Periodically check for status updates
-    setInterval(checkTimeSlotStatusUpdates, 60 * 1000); // Check every minute
-    checkTimeSlotStatusUpdates(); // Check once at startup
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+    runMigrations().then(() => {
+        // Periodically check for status updates
+        setInterval(checkTimeSlotStatusUpdates, 60 * 1000); // Check every minute
+        checkTimeSlotStatusUpdates(); // Check once at startup
 
-    app.listen(PORT, () => {
-        console.log(`melanjeux-api listening on http://localhost:${PORT}`);
+        app.listen(PORT, () => {
+            console.log(`melanjeux-api listening on http://localhost:${PORT}`);
+        });
     });
+} else {
+    // In production (Vercel), we might want to run migrations differently
+    // but for simplicity, we can trigger them once if needed or assume they are done.
+    // Vercel serverless functions will just export the app.
 }
 
-start();
+export default app;
