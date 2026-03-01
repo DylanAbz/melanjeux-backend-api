@@ -212,7 +212,8 @@ router.get('/:id', async (req, res) => {
                 r.min_players,
                 r.max_players,
                 eg.display_name as escape_game_nom,
-                eg.address_line1 as escape_game_adresse
+                eg.address_line1 as escape_game_adresse,
+                (SELECT COUNT(*)::int FROM time_slot_players WHERE time_slot_id = ts.id AND status = 'paid') as paid_players_count
             FROM time_slots ts
             JOIN rooms r ON ts.room_id = r.id
             JOIN escape_games eg ON r.escape_game_id = eg.id

@@ -211,11 +211,13 @@ router.get(
           ts.start_time,
           ts.status as slot_status,
           ts.current_players_count,
+          ts.is_chat_active,
           r.name as room_title,
           r.image_url as room_image,
           r.min_players,
           r.max_players,
-          tsp.status as player_status
+          tsp.status as player_status,
+          (SELECT COUNT(*)::int FROM time_slot_players WHERE time_slot_id = ts.id AND status = 'paid') as paid_players_count
         FROM time_slot_players tsp
         JOIN time_slots ts ON tsp.time_slot_id = ts.id
         JOIN rooms r ON ts.room_id = r.id
@@ -255,6 +257,58 @@ router.get(
       `;
 
             return res.json(players);
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'internal_error' });
+        }
+    }
+);
+
+/**
+ * PAY for a time slot (joueur)
+ */
+router.post(
+    '/pay',
+    authRequired,
+    async (req: AuthRequest, res) => {
+        try {
+            const { time_slot_id } = req.body;
+            if (!time_slot_id) {
+                return res.status(400).json({ error: 'time_slot_id_required' });
+            }
+
+            // Enregistrer le paiement (fictif)
+            const result = await sql<any[]>`
+                UPDATE time_slot_players
+                SET status = 'paid'
+                WHERE time_slot_id = ${time_slot_id}
+                  AND user_id = ${req.user!.id}
+                RETURNING *
+            `;
+
+            if (result.length === 0) {
+                return res.status(404).json({ error: 'player_not_joined' });
+            }
+
+            // Vérifier si tout le monde a payé pour potentiellement changer le status du slot
+            const players = await sql<{ status: string }[]>`
+                SELECT status FROM time_slot_players
+                WHERE time_slot_id = ${time_slot_id}
+                  AND status != 'cancelled'
+            `;
+
+            const allPaid = players.every(p => p.status === 'paid');
+            const capacity = await getSlotCapacity(time_slot_id);
+
+            if (allPaid && capacity && capacity.currentPlayers >= capacity.minPlayers) {
+                await sql`
+                    UPDATE time_slots
+                    SET status = 'waiting_validation'
+                    WHERE id = ${time_slot_id}
+                `;
+            }
+
+            return res.json({ success: true, player: result[0] });
         } catch (err) {
             console.error(err);
             return res.status(500).json({ error: 'internal_error' });

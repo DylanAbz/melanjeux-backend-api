@@ -8,6 +8,7 @@ import roomsRoutes from './routes/rooms';
 import timeSlotsRoutes from './routes/timeSlots';
 import timeSlotPlayersRoutes from './routes/timeSlotPlayers';
 import { sql } from './db';
+import { checkTimeSlotStatusUpdates } from './statusUpdates';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -90,10 +91,11 @@ async function runMigrations() {
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 room_id UUID NOT NULL REFERENCES rooms(id),
                 start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-                status TEXT NOT NULL DEFAULT 'empty', -- empty, partially_filled, full, cancelled
+                status TEXT NOT NULL DEFAULT 'empty', -- empty, partially_filled, full, cancelled, payment_pending, waiting_validation, confirmed, archived
                 min_players_override INTEGER,
                 max_players_override INTEGER,
                 current_players_count INTEGER DEFAULT 0,
+                is_chat_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `;
@@ -133,14 +135,17 @@ async function runMigrations() {
         await sql`
             ALTER TABLE time_slots 
             ALTER COLUMN status TYPE TEXT,
-            ALTER COLUMN status SET DEFAULT 'empty';
+            ALTER COLUMN status SET DEFAULT 'empty',
+            ADD COLUMN IF NOT EXISTS is_chat_active BOOLEAN DEFAULT TRUE;
         `;
+        // Force l'activation pour les lignes qui auraient pu être créées sans défaut
+        await sql`UPDATE time_slots SET is_chat_active = TRUE WHERE is_chat_active IS NULL`;
+        
         console.log('Migrations finished.');
     } catch (err) {
         console.error('Migration error:', err);
     }
 }
-runMigrations();
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'melanjeux-api' });
@@ -157,6 +162,16 @@ app.get('/me', authRequired, (req: AuthRequest, res) => {
     res.json({ user: req.user });
 });
 
-app.listen(PORT, () => {
-    console.log(`melanjeux-api listening on http://localhost:${PORT}`);
-});
+async function start() {
+    await runMigrations();
+    
+    // Periodically check for status updates
+    setInterval(checkTimeSlotStatusUpdates, 60 * 1000); // Check every minute
+    checkTimeSlotStatusUpdates(); // Check once at startup
+
+    app.listen(PORT, () => {
+        console.log(`melanjeux-api listening on http://localhost:${PORT}`);
+    });
+}
+
+start();
