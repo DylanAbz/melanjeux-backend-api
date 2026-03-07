@@ -137,6 +137,8 @@ router.get('/', async (req, res) => {
         r.is_pmr_accessible AS "isPmrAccessible",
         eg.display_name AS escape_game_nom,
         eg.address_line1 AS escape_game_adresse,
+        eg.city AS escape_game_ville,
+        eg.postal_code AS escape_game_cp,
         eg.contact_phone AS escape_game_phone,
         eg.contact_email AS escape_game_mail,
         eg.latitude,
@@ -167,6 +169,8 @@ router.get('/', async (req, res) => {
             escapeGame: {
                 nom: r.escape_game_nom,
                 adresse: r.escape_game_adresse,
+                ville: r.escape_game_ville,
+                codePostal: r.escape_game_cp,
                 telephone: r.escape_game_phone,
                 mail: r.escape_game_mail,
                 coordinates: r.latitude && r.longitude ? { lat: r.latitude, lng: r.longitude } : undefined
@@ -205,6 +209,8 @@ router.get('/:id', async (req, res) => {
         r.is_pmr_accessible AS "isPmrAccessible",
         eg.display_name AS escape_game_nom,
         eg.address_line1 AS escape_game_adresse,
+        eg.city AS escape_game_ville,
+        eg.postal_code AS escape_game_cp,
         eg.contact_phone AS escape_game_phone,
         eg.contact_email AS escape_game_mail,
         eg.latitude,
@@ -239,6 +245,8 @@ router.get('/:id', async (req, res) => {
             escapeGame: {
                 nom: r.escape_game_nom,
                 adresse: r.escape_game_adresse,
+                ville: r.escape_game_ville,
+                codePostal: r.escape_game_cp,
                 telephone: r.escape_game_phone,
                 mail: r.escape_game_mail,
                 coordinates: r.latitude && r.longitude ? { lat: r.latitude, lng: r.longitude } : undefined
