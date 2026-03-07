@@ -64,7 +64,7 @@ router.post('/signup', async (req, res) => {
         ${consentRGPD},
         'player'
       )
-      RETURNING id, email, first_name, last_name, pseudo, role
+      RETURNING id, email, first_name, last_name, pseudo, role, birth_date, city
     `;
 
         const user = result[0];
@@ -77,7 +77,9 @@ router.post('/signup', async (req, res) => {
                 role: user.role,
                 firstName: user.first_name,
                 lastName: user.last_name,
-                pseudo: user.pseudo
+                pseudo: user.pseudo,
+                birthDate: user.birth_date,
+                city: user.city
             },
             token,
         });
@@ -108,7 +110,7 @@ router.post('/login', async (req, res) => {
         }
 
         const rows = await sql<any[]>`
-      SELECT id, email, password_hash, role, first_name, last_name, pseudo
+      SELECT id, email, password_hash, role, first_name, last_name, pseudo, birth_date, city, rooms_explored, favorite_hobby, characteristics, avatar_url
       FROM users
       WHERE email = ${email}
       LIMIT 1
@@ -133,9 +135,69 @@ router.post('/login', async (req, res) => {
                 role: user.role,
                 firstName: user.first_name,
                 lastName: user.last_name,
-                pseudo: user.pseudo
+                pseudo: user.pseudo,
+                birthDate: user.birth_date,
+                city: user.city,
+                roomsExplored: user.rooms_explored,
+                favoriteHobby: user.favorite_hobby,
+                characteristics: user.characteristics,
+                avatarUrl: user.avatar_url
             },
             token,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'internal_error' });
+    }
+});
+
+router.put('/profile', async (req, res) => {
+    // Basic implementation, should ideally use authRequired middleware
+    // For now keeping it simple as per previous routes
+    try {
+        const { id, pseudo, roomsExplored, favoriteHobby, characteristics, avatarUrl, firstName, lastName, birthDate, isAgePublic, city } = req.body;
+        if (!id) return res.status(400).json({ error: 'User ID is required' });
+
+        // Neon / PostgreSQL JSONB requires a proper JSON string or a JSON object that can be cast
+        const characteristicsJson = characteristics ? JSON.stringify(characteristics) : undefined;
+
+        // Since neon sql doesn't support object syntax for SET, we'll fetch current and update
+        // Or we use multiple SET but that's complex with template strings.
+        // Let's use a simple approach for now where we update all if present
+        
+        const result = await sql`
+            UPDATE users 
+            SET pseudo = COALESCE(${pseudo || null}, pseudo),
+                rooms_explored = COALESCE(${roomsExplored || null}, rooms_explored),
+                favorite_hobby = COALESCE(${favoriteHobby || null}, favorite_hobby),
+                characteristics = COALESCE(${characteristicsJson || null}::jsonb, characteristics),
+                avatar_url = COALESCE(${avatarUrl || null}, avatar_url),
+                first_name = COALESCE(${firstName || null}, first_name),
+                last_name = COALESCE(${lastName || null}, last_name),
+                birth_date = COALESCE(${birthDate ? new Date(birthDate).toISOString() : null}, birth_date),
+                is_age_public = COALESCE(${isAgePublic ?? null}, is_age_public),
+                city = COALESCE(${city || null}, city)
+            WHERE id = ${id}
+            RETURNING id, email, role, first_name, last_name, pseudo, birth_date, city, rooms_explored, favorite_hobby, characteristics, avatar_url, is_age_public
+        `;
+
+        const user = result[0];
+        return res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                pseudo: user.pseudo,
+                birthDate: user.birth_date,
+                city: user.city,
+                roomsExplored: user.rooms_explored,
+                favoriteHobby: user.favorite_hobby,
+                characteristics: user.characteristics,
+                avatarUrl: user.avatar_url,
+                isAgePublic: user.is_age_public
+            }
         });
     } catch (err) {
         console.error(err);

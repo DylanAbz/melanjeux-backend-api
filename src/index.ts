@@ -113,6 +113,14 @@ async function runMigrations() {
 
         // Migration columns for existing tables
         await sql`
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS rooms_explored TEXT,
+            ADD COLUMN IF NOT EXISTS favorite_hobby TEXT,
+            ADD COLUMN IF NOT EXISTS characteristics JSONB,
+            ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+        `;
+
+        await sql`
             ALTER TABLE escape_games 
             ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
             ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
