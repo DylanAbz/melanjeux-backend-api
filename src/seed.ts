@@ -110,18 +110,18 @@ async function seed() {
 
         console.log('✅ Rooms created');
 
-        // 5. Création des créneaux (Time Slots) pour les 14 prochains jours
-        console.log('📅 Generating time slots...');
+        // 5. Création des créneaux (Time Slots) pour les 60 prochains jours
+        console.log('📅 Generating time slots for the next 60 days...');
         const roomRows = await sql<any[]>`SELECT id FROM rooms`;
         const hours = [10, 12, 14, 16, 18, 20, 22];
 
         for (const room of roomRows) {
-            for (let i = 0; i < 14; i++) {
+            for (let i = 0; i < 60; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
                 
                 // On ne met pas forcément des créneaux tous les jours pour tester les dates indisponibles
-                if (i % 5 === 0 && i !== 0) continue; 
+                if (i % 7 === 6) continue; 
 
                 for (const hour of hours) {
                     const startTime = new Date(date);
