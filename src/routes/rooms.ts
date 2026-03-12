@@ -119,36 +119,74 @@ router.post(
  */
 router.get('/', async (req, res) => {
     try {
-        const rows = await sql<any[]>`
-      SELECT
-        r.id,
-        r.name AS title,
-        r.description,
-        r.image_url AS image,
-        r.category,
-        r.price_json AS price,
-        r.duration_minutes AS duration,
-        r.min_players AS "minPlayers",
-        r.max_players AS "maxPlayers",
-        r.search_level AS "searchLevel",
-        r.thinking_level AS "thinkingLevel",
-        r.manipulation_level AS "manipulationLevel",
-        r.difficulty_level AS "difficultyLevel",
-        r.is_pmr_accessible AS "isPmrAccessible",
-        eg.display_name AS escape_game_nom,
-        eg.address_line1 AS escape_game_adresse,
-        eg.city AS escape_game_ville,
-        eg.postal_code AS escape_game_cp,
-        eg.contact_phone AS escape_game_phone,
-        eg.contact_email AS escape_game_mail,
-        eg.latitude,
-        eg.longitude
-      FROM rooms r
-      JOIN escape_games eg ON r.escape_game_id = eg.id
-      WHERE r.is_active = TRUE AND eg.is_active = TRUE
-      ORDER BY r.created_at DESC
-      LIMIT 100
-    `;
+        const { search } = req.query;
+        let rows: any[];
+
+        if (search) {
+            const searchPattern = `%${search}%`;
+            rows = await sql<any[]>`
+        SELECT
+          r.id,
+          r.name AS title,
+          r.description,
+          r.image_url AS image,
+          r.category,
+          r.price_json AS price,
+          r.duration_minutes AS duration,
+          r.min_players AS "minPlayers",
+          r.max_players AS "maxPlayers",
+          r.search_level AS "searchLevel",
+          r.thinking_level AS "thinkingLevel",
+          r.manipulation_level AS "manipulationLevel",
+          r.difficulty_level AS "difficultyLevel",
+          r.is_pmr_accessible AS "isPmrAccessible",
+          eg.display_name AS escape_game_nom,
+          eg.address_line1 AS escape_game_adresse,
+          eg.city AS escape_game_ville,
+          eg.postal_code AS escape_game_cp,
+          eg.contact_phone AS escape_game_phone,
+          eg.contact_email AS escape_game_mail,
+          eg.latitude,
+          eg.longitude
+        FROM rooms r
+        JOIN escape_games eg ON r.escape_game_id = eg.id
+        WHERE r.is_active = TRUE AND eg.is_active = TRUE
+        AND (r.name ILIKE ${searchPattern} OR eg.display_name ILIKE ${searchPattern})
+        ORDER BY r.created_at DESC
+        LIMIT 100
+      `;
+        } else {
+            rows = await sql<any[]>`
+        SELECT
+          r.id,
+          r.name AS title,
+          r.description,
+          r.image_url AS image,
+          r.category,
+          r.price_json AS price,
+          r.duration_minutes AS duration,
+          r.min_players AS "minPlayers",
+          r.max_players AS "maxPlayers",
+          r.search_level AS "searchLevel",
+          r.thinking_level AS "thinkingLevel",
+          r.manipulation_level AS "manipulationLevel",
+          r.difficulty_level AS "difficultyLevel",
+          r.is_pmr_accessible AS "isPmrAccessible",
+          eg.display_name AS escape_game_nom,
+          eg.address_line1 AS escape_game_adresse,
+          eg.city AS escape_game_ville,
+          eg.postal_code AS escape_game_cp,
+          eg.contact_phone AS escape_game_phone,
+          eg.contact_email AS escape_game_mail,
+          eg.latitude,
+          eg.longitude
+        FROM rooms r
+        JOIN escape_games eg ON r.escape_game_id = eg.id
+        WHERE r.is_active = TRUE AND eg.is_active = TRUE
+        ORDER BY r.created_at DESC
+        LIMIT 100
+      `;
+        }
 
         // Map flat SQL result to nested Room interface
         const rooms = rows.map(r => ({
